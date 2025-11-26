@@ -52,7 +52,9 @@ def route_question(state: AgentState):
     route = pred.classification.lower().strip()
 
     # Heuristic overrides to improve behavior on known patterns
-    if "product policy" in q_lower or "returns & policy" in q_lower or "return window" in q_lower:
+    if ("product policy" in q_lower or "returns & policy" in q_lower or "return window" in q_lower 
+        or "return" in q_lower and ("days" in q_lower or "policy" in q_lower)
+        or "according to" in q_lower and "policy" in q_lower):
         # Pure policy questions should rely on docs only.
         route = "rag"
     elif any(kw in q_lower for kw in ["kpi", "average order value", "aov", "gross margin"]):

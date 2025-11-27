@@ -7,7 +7,7 @@ class LocalRetriever:
         self.chunks = []
         self.doc_ids = []
         self._load_docs(docs_path)
-        
+
         # Tokenize for BM25
         tokenized_corpus = [doc.lower().split() for doc in self.chunks]
         self.bm25 = BM25Okapi(tokenized_corpus)
@@ -27,14 +27,14 @@ class LocalRetriever:
                         self.doc_ids.append(f"{fname}::chunk{i}")
 
     def search(self, query, k=3):
-        """Returns list of (content, doc_id)"""
+        """Returns list of (content, doc_id, score) for top-k matches."""
         tokenized_query = query.lower().split()
         scores = self.bm25.get_scores(tokenized_query)
         # Get top k indices
         top_n = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
-        
+
         results = []
         for i in top_n:
-            if scores[i] > 0: # Only return relevant
-                results.append((self.chunks[i], self.doc_ids[i]))
+            if scores[i] > 0:  # Only return relevant
+                results.append((self.chunks[i], self.doc_ids[i], float(scores[i])))
         return results

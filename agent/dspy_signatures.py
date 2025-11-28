@@ -8,12 +8,16 @@ class RouterSignature(dspy.Signature):
 
 # 2. Planner (NEW NODE)
 class PlannerSignature(dspy.Signature):
-    """Review the Context and Question to extract exact constraints for SQL."""
+    """Review the Context and Question to extract exact constraints for SQL.
+    
+    IMPORTANT: Marketing calendar names (like 'Summer Beverages 1997') are NOT database columns.
+    Extract only the actual dates (e.g., 1997-06-01 to 1997-06-30) and category names (e.g., 'Beverages').
+    Do NOT output filter conditions like "marketing_calendar = 'Summer Beverages 1997'"."""
     question = dspy.InputField()
     context = dspy.InputField(desc="Retrieved documents with dates and policies")
     
     date_range = dspy.OutputField(desc="Start and End dates in YYYY-MM-DD format (or 'None')")
-    filters = dspy.OutputField(desc="Specific Categories, Products, or Regions to filter")
+    filters = dspy.OutputField(desc="Category names or product filters (NOT marketing calendar names)")
     column_logic = dspy.OutputField(desc="How to calculate metrics (e.g., Revenue formula)")
 
 # 3. SQL Generator (Updated to use Plan)
@@ -22,11 +26,12 @@ class GenerateSQL(dspy.Signature):
 
 STRICT RULES:
 1. Tables: ONLY orders, order_items, products, customers (optionally Categories via Products.CategoryID).
-2. Columns: Use ONLY columns shown in db_schema. DO NOT invent columns like CampaignName, returns, etc.
-3. Date filters: ALWAYS use date(OrderDate) BETWEEN 'YYYY-MM-DD' AND 'YYYY-MM-DD'.
-4. FORBIDDEN: DATEDIFF, DATE_PART, EXTRACT, YEAR(), MONTH(), IFNULL (use COALESCE instead).
-5. NO comments (--), NO explanations, NO "Note:", NO reasoning text, NO placeholder text.
-6. Output format: Start with SELECT, end with semicolon. Clean SQL only.
+2. Columns: Use ONLY columns shown in db_schema. DO NOT invent columns (no: CampaignName, returns, marketing_calendar).
+3. Date filters: ALWAYS use date(OrderDate) BETWEEN 'YYYY-MM-DD' AND 'YYYY-MM-DD'. Marketing calendar dates are for reference only, not DB columns.
+4. JOINs: If you reference p.CategoryID or p.ProductName, you MUST include: JOIN products p ON oi.ProductID = p.ProductID
+5. FORBIDDEN: DATEDIFF, DATE_PART, EXTRACT, YEAR(), MONTH(), IFNULL (use COALESCE instead).
+6. NO comments (--), NO explanations, NO "Note:", NO reasoning text, NO placeholder text.
+7. Output format: Start with SELECT, end with semicolon. Clean SQL only.
 
 VALID EXAMPLES (follow these patterns):
 
@@ -36,8 +41,13 @@ A: SELECT p.CategoryID, SUM(oi.Quantity) as qty FROM orders o JOIN order_items o
 Q: Average Order Value in December 1997
 A: SELECT ROUND(SUM(oi.UnitPrice * oi.Quantity * (1 - COALESCE(oi.Discount, 0))) / COUNT(DISTINCT o.OrderID), 2) as aov FROM orders o JOIN order_items oi ON o.OrderID = oi.OrderID WHERE date(o.OrderDate) BETWEEN '1997-12-01' AND '1997-12-31';
 
+Q: AOV for category 3 in December 1997
+A: SELECT ROUND(SUM(oi.UnitPrice * oi.Quantity * (1 - COALESCE(oi.Discount, 0))) / COUNT(DISTINCT o.OrderID), 2) as aov FROM orders o JOIN order_items oi ON o.OrderID = oi.OrderID JOIN products p ON oi.ProductID = p.ProductID WHERE p.CategoryID = 3 AND date(o.OrderDate) BETWEEN '1997-12-01' AND '1997-12-31';
+
 Q: Top 3 products by revenue all-time
 A: SELECT p.ProductName as product, SUM(oi.UnitPrice * oi.Quantity * (1 - COALESCE(oi.Discount, 0))) as revenue FROM order_items oi JOIN products p ON oi.ProductID = p.ProductID GROUP BY p.ProductName ORDER BY revenue DESC LIMIT 3;
+
+CRITICAL: Always use table aliases (oi.UnitPrice, oi.Quantity, p.ProductName) to avoid "ambiguous column" errors.
 
 NOW: Generate the query for the current question using the Plan. Output ONLY the SQL, nothing else."""
     question = dspy.InputField()
@@ -49,12 +59,18 @@ NOW: Generate the query for the current question using the Plan. Output ONLY the
 
 # 4. Synthesizer
 class SynthesizeAnswer(dspy.Signature):
-    """Answer the user question.
-    Format your answer as a JSON object with keys: 'final_answer' and 'explanation'.
-    """
+    """Answer the user question based on the provided context.
+    
+    CRITICAL: Match the format_hint EXACTLY:
+    - If format_hint is "int" → output a plain integer (e.g., 14)
+    - If format_hint is "float" → output a plain number (e.g., 123.45)
+    - If format_hint is "{category:str, quantity:int}" → output {"category": "Beverages", "quantity": 150}
+    - If format_hint is "list[{product:str, revenue:float}]" → output [{"product": "Chai", "revenue": 1234.56}, ...]
+    
+    For dict/list format_hints, output valid Python dict/list syntax, NOT a string representation."""
     question = dspy.InputField()
     context = dspy.InputField()
     format_hint = dspy.InputField()
     
-    final_answer = dspy.OutputField(desc="The answer value matching format_hint")
-    explanation = dspy.OutputField(desc="Short explanation string")
+    final_answer = dspy.OutputField(desc="The answer value matching format_hint EXACTLY (int, float, dict, or list)")
+    explanation = dspy.OutputField(desc="Short explanation (1-2 sentences)")

@@ -4,3 +4,12 @@
 {"id": "sql_top3_products_by_revenue_alltime", "question": "Top 3 products by total revenue all-time. Revenue uses Order Details: SUM(UnitPrice*Quantity*(1-Discount)). Return list[{product:str, revenue:float}].", "format_hint": "list[{product:str, revenue:float}]"}
 {"id": "hybrid_revenue_beverages_summer_1997", "question": "Total revenue from the 'Beverages' category during 'Summer Beverages 1997' dates. Return a float rounded to 2 decimals.", "format_hint": "float"}
 {"id": "hybrid_best_customer_margin_1997", "question": "Per the KPI definition of gross margin, who was the top customer by gross margin in 1997? Assume CostOfGoods is approximated by 70% of UnitPrice if not available. Return {customer:str, margin:float}.", "format_hint": "{customer:str, margin: float}"}
+
+
+
+
+
+
+
+
+

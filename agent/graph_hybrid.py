@@ -9,7 +9,7 @@ from agent.tools.sqlite_tool import get_schema_string, execute_query
 
 # -- SETUP DSPy --
 lm = dspy.LM(
-    "ollama_chat/phi3.5:3.8b-mini-instruct-q4_K_M",
+    "ollama_chat/llama3.1:8b",
     api_base="http://localhost:11434",
     api_key=""
 )
